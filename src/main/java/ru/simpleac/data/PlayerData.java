@@ -32,6 +32,11 @@ public class PlayerData {
     public Double lastMoveHeading = null; // направление движения в градусах
     public Float lastLookYawAtMove = null;
 
+    // Speed (скользящее окно)
+    public double speedWindowDistance = 0.0;
+    public long speedWindowStartMs = System.currentTimeMillis();
+    public int speedViolationStreak = 0;
+
     // Scaffold
     public final Deque<Long> recentPlacements = new ArrayDeque<>();
 
