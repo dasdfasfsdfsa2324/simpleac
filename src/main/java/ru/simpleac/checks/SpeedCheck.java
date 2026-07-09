@@ -1,57 +1,94 @@
-package ru.simpleac.data;
+package ru.simpleac.checks;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.Map;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.potion.PotionEffectType;
+import ru.simpleac.data.PlayerData;
+import ru.simpleac.data.PlayerDataManager;
+import ru.simpleac.managers.ViolationManager;
 
 /**
- * Хранит всё состояние, необходимое проверкам, для одного игрока.
+ * Проверка горизонтальной скорости с учётом Speed-эффекта.
+ *
+ * Важно: скорость считается НЕ по одному тику (это шумно и ловит лаги/рубербанд),
+ * а как скользящее среднее за последние ~1 секунду движения, плюс нарушение
+ * фиксируется только если превышение держится несколько тиков подряд.
+ * Это сильно снижает ложные срабатывания на обычном спринт-беге/спринт-прыжках.
  */
-public class PlayerData {
+public class SpeedCheck implements Listener {
 
-    // Очки нарушений по каждому чеку
-    public final Map<String, Double> violations = new HashMap<>();
+    private final JavaPlugin plugin;
+    private final PlayerDataManager dataManager;
+    private final ViolationManager violationManager;
 
-    // Общие
-    public long lastMoveTime = System.currentTimeMillis();
-    public double lastX, lastY, lastZ;
-    public float lastYaw, lastPitch;
-    public int airTicks = 0;
-    public boolean wasOnGround = true;
-
-    // KillAura
-    public long lastSwingTime = 0L;
-    public final Deque<Long> recentAttackTimes = new ArrayDeque<>();
-    public String lastAttackedTargetId = null;
-    public long lastAttackTime = 0L;
-
-    // Baritone / straight-line
-    public int straightLineTicks = 0;
-    public int perfectRotationTicks = 0;
-    public Double lastMoveHeading = null; // направление движения в градусах
-    public Float lastLookYawAtMove = null;
-
-    // Speed (скользящее окно)
-    public double speedWindowDistance = 0.0;
-    public long speedWindowStartMs = System.currentTimeMillis();
-    public int speedViolationStreak = 0;
-
-    // Scaffold
-    public final Deque<Long> recentPlacements = new ArrayDeque<>();
-
-    // AutoClicker
-    public final Deque<Long> recentClicks = new ArrayDeque<>();
-
-    public double getVl(String check) {
-        return violations.getOrDefault(check, 0.0);
+    public SpeedCheck(JavaPlugin plugin, PlayerDataManager dataManager, ViolationManager violationManager) {
+        this.plugin = plugin;
+        this.dataManager = dataManager;
+        this.violationManager = violationManager;
     }
 
-    public void setVl(String check, double value) {
-        violations.put(check, value);
+    private boolean enabled() {
+        return plugin.getConfig().getBoolean("checks.speed.enabled", true);
     }
 
-    public void addVl(String check, double amount) {
-        violations.merge(check, amount, Double::sum);
+    @EventHandler(ignoreCancelled = true)
+    public void onMove(PlayerMoveEvent event) {
+        if (!enabled()) return;
+        Player player = event.getPlayer();
+        if (player.hasPermission("simpleac.bypass")) return;
+        if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) return;
+        if (player.isFlying() || player.getAllowFlight() || player.isGliding()) return;
+        if (player.isInsideVehicle() || player.isSwimming()) return;
+
+        Location from = event.getFrom();
+        Location to = event.getTo();
+        if (to == null) return;
+
+        PlayerData data = dataManager.get(player.getUniqueId());
+        long now = System.currentTimeMillis();
+
+        double dx = to.getX() - from.getX();
+        double dz = to.getZ() - from.getZ();
+        double dist = Math.hypot(dx, dz);
+
+        // копим расстояние и время за скользящее окно ~1 секунда
+        data.speedWindowDistance += dist;
+        long elapsedSinceWindowStart = now - data.speedWindowStartMs;
+
+        if (elapsedSinceWindowStart < 1000) {
+            return; // окно ещё не набралось, ждём
+        }
+
+        double avgSpeed = data.speedWindowDistance / (elapsedSinceWindowStart / 1000.0);
+
+        double maxSpeed = plugin.getConfig().getDouble("checks.speed.max-blocks-per-sec", 8.2);
+
+        int speedAmplifier = 0;
+        if (player.getPotionEffect(PotionEffectType.SPEED) != null) {
+            speedAmplifier = player.getPotionEffect(PotionEffectType.SPEED).getAmplifier() + 1;
+        }
+        double allowedSpeed = maxSpeed + (speedAmplifier * 2.0);
+
+        int requiredConsecutive = plugin.getConfig().getInt("checks.speed.consecutive-windows", 3);
+
+        if (avgSpeed > allowedSpeed) {
+            data.speedViolationStreak++;
+            if (data.speedViolationStreak >= requiredConsecutive) {
+                violationManager.flag(player, "speed", 1.5,
+                        "avgSpeed=" + String.format("%.2f", avgSpeed) + " b/s");
+                data.speedViolationStreak = 0;
+            }
+        } else {
+            data.speedViolationStreak = 0;
+        }
+
+        // сброс окна
+        data.speedWindowDistance = 0.0;
+        data.speedWindowStartMs = now;
     }
 }
