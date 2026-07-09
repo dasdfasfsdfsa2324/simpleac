@@ -25,6 +25,7 @@ public class PlayerData {
     public final Deque<Long> recentAttackTimes = new ArrayDeque<>();
     public String lastAttackedTargetId = null;
     public long lastAttackTime = 0L;
+    public int killAuraSuspicionStreak = 0;
 
     // Baritone / straight-line
     public int straightLineTicks = 0;
