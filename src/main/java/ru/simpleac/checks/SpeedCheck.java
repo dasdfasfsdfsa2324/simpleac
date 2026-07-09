@@ -1,65 +1,57 @@
-package ru.simpleac.checks;
+package ru.simpleac.data;
 
-import org.bukkit.GameMode;
-import org.bukkit.Location;
-import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerMoveEvent;
-import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.potion.PotionEffectType;
-import ru.simpleac.data.PlayerDataManager;
-import ru.simpleac.managers.ViolationManager;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * Простая проверка горизонтальной скорости с учётом Speed-эффекта.
- * Это грубая эвристика (без полноценного физического движка), поэтому
- * порог намеренно взят с запасом, чтобы снизить ложные срабатывания.
+ * Хранит всё состояние, необходимое проверкам, для одного игрока.
  */
-public class SpeedCheck implements Listener {
+public class PlayerData {
 
-    private final JavaPlugin plugin;
-    private final PlayerDataManager dataManager;
-    private final ViolationManager violationManager;
+    // Очки нарушений по каждому чеку
+    public final Map<String, Double> violations = new HashMap<>();
 
-    public SpeedCheck(JavaPlugin plugin, PlayerDataManager dataManager, ViolationManager violationManager) {
-        this.plugin = plugin;
-        this.dataManager = dataManager;
-        this.violationManager = violationManager;
+    // Общие
+    public long lastMoveTime = System.currentTimeMillis();
+    public double lastX, lastY, lastZ;
+    public float lastYaw, lastPitch;
+    public int airTicks = 0;
+    public boolean wasOnGround = true;
+
+    // KillAura
+    public long lastSwingTime = 0L;
+    public final Deque<Long> recentAttackTimes = new ArrayDeque<>();
+    public String lastAttackedTargetId = null;
+    public long lastAttackTime = 0L;
+
+    // Baritone / straight-line
+    public int straightLineTicks = 0;
+    public int perfectRotationTicks = 0;
+    public Double lastMoveHeading = null; // направление движения в градусах
+    public Float lastLookYawAtMove = null;
+
+    // Speed (скользящее окно)
+    public double speedWindowDistance = 0.0;
+    public long speedWindowStartMs = System.currentTimeMillis();
+    public int speedViolationStreak = 0;
+
+    // Scaffold
+    public final Deque<Long> recentPlacements = new ArrayDeque<>();
+
+    // AutoClicker
+    public final Deque<Long> recentClicks = new ArrayDeque<>();
+
+    public double getVl(String check) {
+        return violations.getOrDefault(check, 0.0);
     }
 
-    private boolean enabled() {
-        return plugin.getConfig().getBoolean("checks.speed.enabled", true);
+    public void setVl(String check, double value) {
+        violations.put(check, value);
     }
 
-    @EventHandler(ignoreCancelled = true)
-    public void onMove(PlayerMoveEvent event) {
-        if (!enabled()) return;
-        Player player = event.getPlayer();
-        if (player.hasPermission("simpleac.bypass")) return;
-        if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) return;
-        if (player.isFlying() || player.getAllowFlight() || player.isGliding()) return;
-        if (player.isInsideVehicle() || player.isSwimming()) return;
-
-        Location from = event.getFrom();
-        Location to = event.getTo();
-        if (to == null) return;
-
-        double dx = to.getX() - from.getX();
-        double dz = to.getZ() - from.getZ();
-        double horizontalSpeed = Math.hypot(dx, dz) * 20.0; // блоков в секунду (20 тиков/сек)
-
-        double maxSpeed = plugin.getConfig().getDouble("checks.speed.max-blocks-per-sec", 6.5);
-
-        int speedAmplifier = 0;
-        if (player.getPotionEffect(PotionEffectType.SPEED) != null) {
-            speedAmplifier = player.getPotionEffect(PotionEffectType.SPEED).getAmplifier() + 1;
-        }
-        double allowedSpeed = maxSpeed + (speedAmplifier * 2.0);
-
-        if (horizontalSpeed > allowedSpeed) {
-            violationManager.flag(player, "speed", 1.5,
-                    "speed=" + String.format("%.2f", horizontalSpeed) + " b/s");
-        }
+    public void addVl(String check, double amount) {
+        violations.merge(check, amount, Double::sum);
     }
 }
