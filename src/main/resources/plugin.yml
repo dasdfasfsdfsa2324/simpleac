@@ -1,0 +1,23 @@
+name: SimpleAC
+main: ru.simpleac.SimpleAC
+version: 1.0.0
+api-version: 1.16
+author: SimpleAC
+description: Простой античит - KillAura, Fly, Spider, Baritone, Scaffold, AutoClicker, Speed
+
+commands:
+  anticheat:
+    description: Основная команда античита
+    usage: /anticheat <reload|vl|alerts>
+    aliases: [ac, sac]
+
+permissions:
+  simpleac.alerts:
+    description: Получать алерты о читерах
+    default: op
+  simpleac.bypass:
+    description: Обход всех проверок античита
+    default: false
+  simpleac.admin:
+    description: Доступ к командам администрирования
+    default: op

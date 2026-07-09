@@ -1,0 +1,73 @@
+prefix: "&8[&cSimpleAC&8] &r"
+
+alerts:
+  enabled: true
+
+decay:
+  interval-seconds: 30
+  amount: 1.0
+
+checks:
+  killaura:
+    enabled: true
+    max-angle: 40.0
+    max-reach: 3.3
+    max-swing-delay-ms: 250
+    vl-to-punish: 12
+
+  fly:
+    enabled: true
+    max-air-ticks: 20
+    vl-to-punish: 8
+
+  spider:
+    enabled: true
+    vl-to-punish: 6
+
+  baritone:
+    enabled: true
+    straight-line-ticks: 60
+    perfect-rotation-ticks: 40
+    vl-to-punish: 15
+
+  scaffold:
+    enabled: true
+    max-placements-per-second: 8
+    vl-to-punish: 10
+
+  autoclicker:
+    enabled: true
+    max-cps: 20
+    min-interval-variance-ms: 15
+    vl-to-punish: 12
+
+  speed:
+    enabled: true
+    max-blocks-per-sec: 6.5
+    vl-to-punish: 10
+
+# %player% будет заменён на ник игрока
+# Список команд - "ступени" наказания. При достижении vl-to-punish * N выполняется
+# команда с индексом (N-1), не выходя за пределы списка (последняя команда повторяется).
+punishments:
+  killaura:
+    - "kick %player% &cОбнаружен KillAura"
+    - "ban %player% &cЧит: KillAura"
+  fly:
+    - "kick %player% &cОбнаружен Fly"
+    - "ban %player% &cЧит: Fly"
+  spider:
+    - "kick %player% &cНелегальное перемещение (Spider)"
+    - "ban %player% &cЧит: Spider"
+  baritone:
+    - "kick %player% &cОбнаружена автоматизация (Baritone/Bot)"
+    - "ban %player% &cЧит: Baritone/Автоклик по пути"
+  scaffold:
+    - "kick %player% &cОбнаружен Scaffold"
+    - "ban %player% &cЧит: Scaffold"
+  autoclicker:
+    - "kick %player% &cОбнаружен AutoClicker"
+    - "ban %player% &cЧит: AutoClicker"
+  speed:
+    - "kick %player% &cОбнаружен Speed"
+    - "ban %player% &cЧит: Speed"
