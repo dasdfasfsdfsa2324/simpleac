@@ -1,6 +1,7 @@
 package ru.simpleac.util;
 
 import org.bukkit.Location;
+import org.bukkit.util.BoundingBox;
 import org.bukkit.util.Vector;
 
 public class MathUtil {
@@ -14,6 +15,24 @@ public class MathUtil {
         double dot = look.dot(toTarget);
         dot = Math.max(-1.0, Math.min(1.0, dot));
         return Math.toDegrees(Math.acos(dot));
+    }
+
+    /**
+     * Кратчайшее расстояние от точки eye до хитбокса box (а не до центра/глаз цели -
+     * это важно, т.к. игроки часто целятся в ноги/тело, а не строго в глаза цели).
+     */
+    public static double distanceToBox(Location eye, BoundingBox box) {
+        double clampedX = clamp(eye.getX(), box.getMinX(), box.getMaxX());
+        double clampedY = clamp(eye.getY(), box.getMinY(), box.getMaxY());
+        double clampedZ = clamp(eye.getZ(), box.getMinZ(), box.getMaxZ());
+        double dx = eye.getX() - clampedX;
+        double dy = eye.getY() - clampedY;
+        double dz = eye.getZ() - clampedZ;
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    private static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     /**
